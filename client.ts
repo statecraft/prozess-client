@@ -75,7 +75,13 @@ const readCursor = (buf: NodeBuffer) => ({
 
 const doNothing = () => {}
 
-export const connect = (callback) => {
+export interface KApi {
+	subscribe(opts: {from?: number, maxbytes?: number}, callback)
+	send(data: NodeBuffer, opts: {targetVersion?: number, conflictKeys?: string[]}, callback)
+	close()
+}
+
+export const connect = (callback: (Error?, KApi?) => void) => {
 	const client = net.connect(9999, 'localhost', () => {
 		// console.log('connected')
 

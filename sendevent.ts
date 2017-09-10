@@ -1,7 +1,7 @@
-import {connect} from './client'
+import {KApi, connect} from './client'
 
 // console.log(process.argv)
-connect((err, client) => {
+connect((err, client?: KApi) => {
 	if (err) throw err
 
 	process.stdin.on('data', (data) => {
