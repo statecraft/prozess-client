@@ -23,6 +23,24 @@ enum SubFlags {
 
 const DEFAULT_SUB_SIZE = 1024*1024
 
+export interface Event {
+	version: number,
+	size: number,
+	crc32?: number,
+	batch_size: number,
+	flags: number,
+	data: NodeBuffer
+}
+
+export interface KApi {
+	source?: string
+	onevent?(evt: Event)
+	subscribe(opts: {from?: number, maxbytes?: number}, callback)
+	send(data: NodeBuffer, opts: {targetVersion?: number, conflictKeys?: string[]}, callback)
+	close()
+}
+
+
 const msgToBytes = (type: ClientMsgType, msg: Object) => {
 	const content = msgpack.encode(msg)
 	const buf = new Buffer(4 + 1 + content.length)
@@ -55,31 +73,26 @@ const readCursor = (buf: NodeBuffer) => ({
 		return bytes
 	},
 
-	readEvent(base_version: number) {
+	readEvent(base_version: number): Event {
 		// console.log(buf.slice(this.n))
 		if (this.remain() < 4 + 4 + 2 + 1 + 1) return null
 		const size = this.readUInt32()
 		const crc32 = this.readUInt32()
 		const batch_size = this.readUInt16()
 		const proto_v = this.readByte()
+		assert(proto_v === 0)
 		const flags = this.readByte()
 		// console.log('readevent', this.remain(), size)
 		if (this.remain() < size) return null
 		const data = this.readBytes(size)
 		return {
 			version: base_version,
-			size, crc32, batch_size, proto_v, flags, data
+			size, crc32, batch_size, flags, data
 		}
 	}
 })
 
 const doNothing = () => {}
-
-export interface KApi {
-	subscribe(opts: {from?: number, maxbytes?: number}, callback)
-	send(data: NodeBuffer, opts: {targetVersion?: number, conflictKeys?: string[]}, callback)
-	close()
-}
 
 export const connect = (callback: (Error?, KApi?) => void) => {
 	const client = net.connect(9999, 'localhost', () => {
@@ -96,7 +109,7 @@ export const connect = (callback: (Error?, KApi?) => void) => {
 				client.write(msg)
 		}
 
-		const api = {
+		const api: KApi = {
 			source: null,
 			onevent: null,
 
@@ -124,7 +137,7 @@ export const connect = (callback: (Error?, KApi?) => void) => {
 			},
 		}
 
-		const onEvent = (evt) => {
+		const onEvent = (evt: Event) => {
 			// console.log('got event', evt)
 			api.onevent && api.onevent(evt)
 		}
@@ -183,7 +196,7 @@ export const connect = (callback: (Error?, KApi?) => void) => {
 
 					eventstream_version = v_start
 
-					const events = []
+					const events: Event[] = []
 					while (cursor.n - start < size) {
 						// console.log('n', cursor.n, 'start', start, 'size', size)
 						const evt = cursor.readEvent(eventstream_version)
@@ -220,3 +233,4 @@ export const connect = (callback: (Error?, KApi?) => void) => {
 
 	})
 }
+
