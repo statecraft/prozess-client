@@ -2,7 +2,7 @@
   "name": "prozess-client",
   "version": "0.1.0",
   "main": "dist/client.js",
-  "main": "dist/client.d.ts",
+  "types": "dist/client.d.ts",
   "license": "ISC",
   "scripts": {
     "build": "tsc",
