@@ -9,6 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "errno": "^0.1.4",
     "msgpack-lite": "^0.1.26"
   },
   "devDependencies": {

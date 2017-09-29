@@ -1,17 +1,19 @@
-import {KApi, connect} from './client'
+import {connect, KApi} from './client'
 
 // console.log(process.argv)
-connect((err, client?: KApi) => {
-	if (err) throw err
+connect(9999, 'localhost', (err, client) => {
+  if (err) throw err
 
-	process.stdin.on('data', (data) => {
-		console.log(`Creating message '${data.toString('utf8')}'`)
-		client.send(Buffer.from(data), {}, (err, v) => {
-			if (err) throw err
-			console.log('Event recieved at version', v)
-		})
-	})
-	process.stdin.on('end', () => {
-		client.close()
-	})
+  process.stdin.on('data', (data) => {
+    console.log(`Creating message '${data.toString('utf8')}'`)
+    client!.send(Buffer.from(data), {targetVersion:1, conflictKeys:['a']}, (err, v) => {
+      if (err) console.log(err.name)
+      console.log('SUCCESS _ CALLBACK CALLED', !!err)
+      if (err) throw err
+      console.log('Event recieved at version', v)
+    })
+  })
+  process.stdin.on('end', () => {
+    client!.close()
+  })
 })

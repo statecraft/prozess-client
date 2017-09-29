@@ -1,15 +1,22 @@
 import {connect} from './client'
 
-connect((err, client) => {
-	console.log('connected', client.source)
-	if (err) throw err
+connect(9999, 'localhost', (err, client) => {
+  if (err) throw err
+  client = client!
 
-	client.onevent = (event) => {
-		console.log('event version', event.version)
-		process.stdout.write(event.data.toString('utf8'))
-	}
-	client.subscribe({from:-1}, (err, response) => {
-		// console.log('sub response', response)
-		// console.log(response.data.toString('utf8'))
-	})
+  console.log('connected', client.source)
+
+  client.onevents = (events) => {
+    console.log('got', events.length, 'events')
+    events.forEach(event => {
+      console.log('event version', event.version)
+      process.stdout.write(event.data.toString('utf8'))
+    })
+  }
+  client.subscribe({from:5, oneshot: true}, (err, response) => { // from:-1 should subscribe raw.
+    if (err) throw err
+    console.log('sub response', response)
+    // console.log(response.data.toString('utf8'))
+  })
+  client.onunsubscribe = () => client!.close()
 })
