@@ -1,4 +1,4 @@
-import {connect, KApi} from './client'
+import {connect} from './client'
 
 // console.log(process.argv)
 connect(9999, 'localhost', (err, client) => {

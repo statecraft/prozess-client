@@ -10,13 +10,25 @@ connect(9999, 'localhost', (err, client) => {
     console.log('got', events.length, 'events')
     events.forEach(event => {
       console.log('event version', event.version)
-      process.stdout.write(event.data.toString('utf8'))
+      //process.stdout.write(event.data.toString('utf8'))
     })
   }
-  client.subscribe({from:5, oneshot: true}, (err, response) => { // from:-1 should subscribe raw.
+
+  client.subscribe(2, {}, (err, response) => { // from:-1 should subscribe raw.
     if (err) throw err
     console.log('sub response', response)
     // console.log(response.data.toString('utf8'))
+    // if (response.oneshot) client!.close()
   })
-  client.onunsubscribe = () => client!.close()
+  client.onunsubscribe = () => {
+    console.log('unsub!')
+    client!.close()
+  }
+
+  // client.getEvents(2, -1, {}, (err, response) => {
+  //   if (err) throw err
+  //   console.log('oneshot response', response)
+  //   client!.close()
+  // })
+
 })
