@@ -70,7 +70,9 @@ export interface PClient /*extends EventEmitter?*/ {
   onunsubscribe?(): void
   subscribe(from?: number, opts?: {maxbytes?: number}, callback?: SubCb): void
   getEvents(from: number, to: number, opts?: {maxbytes?: number}, callback?: SubCb): void
-  send(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback?: Callback<number>): void
+  sendRaw(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback?: Callback<number>): void
+  send(data: NodeBuffer | string, opts?: {targetVersion?: number, conflictKeys?: string[]}): Promise<number>
+  getVersion(): Promise<number>
   close(): void
 }
 
@@ -144,7 +146,37 @@ const readCursor = (buf: NodeBuffer) => ({
 
 const doNothing = () => {}
 
-const connect = (port: number, hostname: string, callback: Callback<PClient>) => {
+function send(this: PClient,
+    data: NodeBuffer | string,
+    opts: {targetVersion?: number, conflictKeys?: string[]} = {}
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    this.sendRaw(data, opts, (err, version) => {
+      if (err) reject(err)
+      else resolve(version)
+    })
+  })
+}
+
+function getVersion(this: PClient): Promise<number> {
+  return new Promise((resolve, reject) => {
+    this.getEvents(-1, -1, { maxbytes: 0 }, (err, data) => {
+      if (err) reject(err)
+      else resolve(data!.v_start)
+    })
+  })
+}
+
+function connect(port: number = 9999, hostname: string = 'localhost'): Promise<PClient> {
+  return new Promise((resolve, reject) => {
+    connectRaw(port, hostname, (err, client) => {
+      if (err) reject(err)
+      else resolve(client)
+    })
+  })
+}
+
+function connectRaw(port: number, hostname: string, callback: Callback<PClient>) {
   const errListener = (err?: Error | null) => { callback(err) }
 
   const client = net.connect(port, hostname, () => {
@@ -203,7 +235,7 @@ const connect = (port: number, hostname: string, callback: Callback<PClient>) =>
 
             aggregateData = mergeSubCbData(aggregateData, data!)
 
-            if (to == null
+            if (to === -1
                 || (to >= 0 && to <= aggregateData.v_end)
                 || aggregateData.current) {
 
@@ -220,7 +252,7 @@ const connect = (port: number, hostname: string, callback: Callback<PClient>) =>
         getNext(from)
       },
 
-      send(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback = doNothing) {
+      sendRaw(data, opts, callback = doNothing) {
         // Array of version, conflict keys, data blob.
         // ['keya', 'keyb']
         const targetVersion = opts.targetVersion || 0
@@ -233,6 +265,9 @@ const connect = (port: number, hostname: string, callback: Callback<PClient>) =>
         // console.log(`writing event ${msg.length} bytes`, msg)
         client.write(msg)
       },
+
+      send,
+      getVersion,
 
       close() {
         client.end()
@@ -397,7 +432,8 @@ type GetEventsProps = {
 }
 
 // Callback returns source, which is the only thing we don't have from the outset.
-const reconnecter = (port: number, hostname: string, firstConnectCallback: Callback<string>): PClient => {
+const reconnecter = (port: number, hostname: string, firstConnectCallback: Callback<string>
+): PClient => {
   let callbackCalled = false
   let wantSubFromV: number | null = null
 
@@ -412,7 +448,7 @@ const reconnecter = (port: number, hostname: string, firstConnectCallback: Callb
   let getEventsQueue: GetEventsProps[] = []
 
   const trySendRaw = (eventProps: EventProps) => {
-    if (client != null) client.send(eventProps.evt, eventProps.opts, (err, v) => {
+    if (client != null) client.sendRaw(eventProps.evt, eventProps.opts, (err, v) => {
       // We eat ClosedBeforeConfirm errors because we'll just resend the event
       // when we reconnect.
       if (err && err.name === 'ClosedBeforeConfirm') return
@@ -468,11 +504,14 @@ const reconnecter = (port: number, hostname: string, firstConnectCallback: Callb
     //   if (client != null) client.
     // },
     //send(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback = doNothing) {
-    send(evt, opts = {}, callback = doNothing) {
+    sendRaw(evt, opts = {}, callback = doNothing) {
       const eventProps = {evt, opts, callback}
       sendEventQueue.push(eventProps)
       trySendRaw(eventProps)
     },
+
+    send,
+    getVersion,
 
     close() {
       if (client) {
@@ -507,7 +546,7 @@ const reconnecter = (port: number, hostname: string, firstConnectCallback: Callb
   const tryConnect = () => {
     assert.strictEqual(state, 'waiting')
     state = 'connecting'
-    connect(port, hostname, (err, _client) => {
+    connectRaw(port, hostname, (err, _client) => {
       if (state === 'stopped') {
         // This is a bit inelegent. It'd be nicer to call close on the
         // underlying socket.

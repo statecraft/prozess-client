@@ -1,12 +1,10 @@
 import {connect} from './client'
 
 // console.log(process.argv)
-connect(9999, 'localhost', (err, client) => {
-  if (err) throw err
-
+connect(9999, 'localhost').then(client => {
   process.stdin.on('data', (data) => {
     console.log(`Creating message '${data.toString('utf8')}'`)
-    client!.send(Buffer.from(data), {targetVersion:1, conflictKeys:['a']}, (err, v) => {
+    client.sendRaw(Buffer.from(data), {targetVersion:1, conflictKeys:['a']}, (err, v) => {
       if (err) console.log(err.name)
       console.log('SUCCESS _ CALLBACK CALLED', !!err)
       if (err) throw err
@@ -14,6 +12,6 @@ connect(9999, 'localhost', (err, client) => {
     })
   })
   process.stdin.on('end', () => {
-    client!.close()
+    client.close()
   })
 })

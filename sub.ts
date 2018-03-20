@@ -1,9 +1,6 @@
 import {connect} from './client'
 
-connect(9999, 'localhost', (err, client) => {
-  if (err) throw err
-  client = client!
-
+connect(9999, 'localhost').then(client => {
   console.log('connected', client.source)
 
   client.onevents = (events) => {
