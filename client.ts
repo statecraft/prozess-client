@@ -43,7 +43,6 @@ const DEFAULT_SUB_SIZE = 1024*1024
 
 export interface Event {
   version: number,
-  size: number,
   crc32?: number,
   batch_size: number,
   flags: number,
@@ -69,7 +68,8 @@ export interface PClient /*extends EventEmitter?*/ {
   onclose?(): void
   onunsubscribe?(): void
   subscribe(from?: number, opts?: {maxbytes?: number}, callback?: SubCb): void
-  getEvents(from: number, to: number, opts?: {maxbytes?: number}, callback?: SubCb): void
+  getEventsRaw(from: number, to: number, opts?: {maxbytes?: number}, callback?: SubCb): void
+  getEvents(from: number, to: number, opts?: {maxbytes?: number}): Promise<SubCbData>
   sendRaw(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback?: Callback<number>): void
   send(data: NodeBuffer | string, opts?: {targetVersion?: number, conflictKeys?: string[]}): Promise<number>
   getVersion(): Promise<number>
@@ -139,12 +139,21 @@ const readCursor = (buf: NodeBuffer) => ({
     const data = this.readBytes(size)
     return {
       version: base_version,
-      size, crc32, batch_size, flags, data
+      crc32, batch_size, flags, data
     }
   }
 })
 
 const doNothing = () => {}
+
+function getEvents(this: PClient, from: number, to: number, opts?: {maxbytes?: number}): Promise<SubCbData> {
+  return new Promise((resolve, reject) => {
+    this.getEventsRaw(from, to, opts, (err, data) => {
+      if (err) reject(err)
+      else resolve(data)
+    })
+  })
+}
 
 function send(this: PClient,
     data: NodeBuffer | string,
@@ -159,13 +168,19 @@ function send(this: PClient,
 }
 
 function getVersion(this: PClient): Promise<number> {
-  return new Promise((resolve, reject) => {
-    this.getEvents(-1, -1, { maxbytes: 0 }, (err, data) => {
-      if (err) reject(err)
-      else resolve(data!.v_start)
-    })
-  })
+  // v_start is next_version.
+  return this.getEvents(-1, -1, {maxbytes: 0})
+  .then(data => data.v_start - 1)
 }
+// function getVersion(this: PClient): Promise<number> {
+//   return new Promise((resolve, reject) => {
+//     this.getEventsRaw(-1, -1, { maxbytes: 0 }, (err, data) => {
+//       if (err) reject(err)
+//       // v_start is next_version.
+//       else resolve(data!.v_start - 1)
+//     })
+//   })
+// }
 
 function connect(port: number = 9999, hostname: string = 'localhost'): Promise<PClient> {
   return new Promise((resolve, reject) => {
@@ -225,7 +240,7 @@ function connectRaw(port: number, hostname: string, callback: Callback<PClient>)
       },
 
       // This gets ops in the range [from, to].
-      getEvents(from, to, opts: {maxbytes?: number} = {}, callback = doNothing) {
+      getEventsRaw(from, to, opts: {maxbytes?: number} = {}, callback = doNothing) {
         let aggregateData: SubCbData | null = null
 
         const getNext = (from: number) => {
@@ -251,6 +266,7 @@ function connectRaw(port: number, hostname: string, callback: Callback<PClient>)
         }
         getNext(from)
       },
+      getEvents,
 
       sendRaw(data, opts, callback = doNothing) {
         // Array of version, conflict keys, data blob.
@@ -463,7 +479,7 @@ const reconnecter = (port: number, hostname: string, firstConnectCallback: Callb
 
   const trySendGetEvents = (props: GetEventsProps) => {
     const {from, to, callback} = props
-    if (client != null) client.getEvents(from, to, {}, (err, data) => {
+    if (client != null) client.getEventsRaw(from, to, {}, (err, data) => {
       if (err && err.name === 'ClosedBeforeConfirm') return
 
       // Ugh this is a copy+paste from trySendRaw.
@@ -493,11 +509,13 @@ const reconnecter = (port: number, hostname: string, firstConnectCallback: Callb
     },
 
     // Note this returns ops in the [from, to] range.
-    getEvents(from, to, opts = {}, callback: Callback<SubCbData>) {
+    getEventsRaw(from, to, opts = {}, callback: Callback<SubCbData>) {
       const oneshot = {from, to, callback}
       getEventsQueue.push(oneshot)
       trySendGetEvents(oneshot)
     },
+
+    getEvents,
 
     // Oops - never exposed this from prozess client.
     // wantUnsubscribe() {

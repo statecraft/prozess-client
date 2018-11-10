@@ -11,7 +11,7 @@ connect(9999, 'localhost').then(client => {
     })
   }
 
-  client.subscribe(2, {}, (err, response) => { // from:-1 should subscribe raw.
+  client.subscribe(1, {}, (err, response) => { // from:-1 should subscribe raw.
     if (err) throw err
     console.log('sub response', response)
     // console.log(response.data.toString('utf8'))
