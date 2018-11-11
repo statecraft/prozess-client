@@ -5,5 +5,5 @@ declare module 'errno' {
 }
 
 declare module 'msgpack-lite' {
-  function encode(data: any): NodeBuffer
+  function encode(data: any): Buffer
 }

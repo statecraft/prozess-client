@@ -46,7 +46,7 @@ export interface Event {
   crc32?: number,
   batch_size: number,
   flags: number,
-  data: NodeBuffer
+  data: Buffer
 }
 
 export type SubCbData = {
@@ -70,8 +70,8 @@ export interface PClient /*extends EventEmitter?*/ {
   subscribe(from?: number, opts?: {maxbytes?: number}, callback?: SubCb): void
   getEventsRaw(from: number, to: number, opts?: {maxbytes?: number}, callback?: SubCb): void
   getEvents(from: number, to: number, opts?: {maxbytes?: number}): Promise<SubCbData>
-  sendRaw(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback?: Callback<number>): void
-  send(data: NodeBuffer | string, opts?: {targetVersion?: number, conflictKeys?: string[]}): Promise<number>
+  sendRaw(data: Buffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback?: Callback<number>): void
+  send(data: Buffer | string, opts?: {targetVersion?: number, conflictKeys?: string[]}): Promise<number>
   getVersion(): Promise<number>
   close(): void
 }
@@ -97,7 +97,7 @@ const msgToBytes = (type: ClientMsgType, msg: Object) => {
   return buf
 }
 
-const readCursor = (buf: NodeBuffer) => ({
+const readCursor = (buf: Buffer) => ({
   n: 0,
   remain() { return buf.length - this.n },
   readByte() { return buf.readUInt8(this.n++) },
@@ -156,7 +156,7 @@ function getEvents(this: PClient, from: number, to: number, opts?: {maxbytes?: n
 }
 
 function send(this: PClient,
-    data: NodeBuffer | string,
+    data: Buffer | string,
     opts: {targetVersion?: number, conflictKeys?: string[]} = {}
 ): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -318,7 +318,7 @@ function connectRaw(port: number, hostname: string, callback: Callback<PClient>)
     // onclose gets called after this anyway, but we need to eat the error.
     client.on('error', onClose)
 
-    let buf: NodeBuffer | null = null
+    let buf: Buffer | null = null
     const tryReadOne = () => {
       if (buf == null) return false
 
@@ -424,7 +424,7 @@ function connectRaw(port: number, hostname: string, callback: Callback<PClient>)
       buf = (cursor.n === buf.length) ? null : buf.slice(cursor.n)
       return true
     }
-    client.on('data', (data: NodeBuffer) => {
+    client.on('data', (data: Buffer) => {
       // console.log('read data of length', data.length, data)
       buf = (buf == null) ? data : Buffer.concat([buf, data])
       while (1) { if (!tryReadOne()) break }
@@ -436,7 +436,7 @@ function connectRaw(port: number, hostname: string, callback: Callback<PClient>)
 
 type EventOpts = {targetVersion?: number, conflictKeys?: string[]}
 type EventProps = {
-  evt: NodeBuffer | string,
+  evt: Buffer | string,
   opts: EventOpts,
   callback: Callback<number>
 }
@@ -521,7 +521,7 @@ const reconnecter = (port: number, hostname: string, firstConnectCallback: Callb
     // wantUnsubscribe() {
     //   if (client != null) client.
     // },
-    //send(data: NodeBuffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback = doNothing) {
+    //send(data: Buffer | string, opts: {targetVersion?: number, conflictKeys?: string[]}, callback = doNothing) {
     sendRaw(evt, opts = {}, callback = doNothing) {
       const eventProps = {evt, opts, callback}
       sendEventQueue.push(eventProps)
