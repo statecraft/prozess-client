@@ -90,7 +90,7 @@ const mergeSubCbData = (a: SubCbData | null, b: SubCbData): SubCbData => {
 
 const msgToBytes = (type: ClientMsgType, msg: Object) => {
   const content = msgpack.encode(msg)
-  const buf = new Buffer(4 + 1 + content.length)
+  const buf = Buffer.alloc(4 + 1 + content.length)
   buf.writeUInt32LE(content.length + 1, 0)
   buf.writeUInt8(type, 4)
   content.copy(buf, 4 + 1)
